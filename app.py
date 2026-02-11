@@ -54,6 +54,10 @@ def record_unknown_question(question):
     logging.info(f"Unknown question recorded: {question[:100]}")
     return {"recorded": "ok"}
 
+def stop_conversation(reason="disrespect"):
+    logging.warning(f"Conversation stopped: {reason}")
+    return {"stopped": True, "reason": reason}
+
 record_user_details_json = {
     "name": "record_user_details",
     "description": "Use this tool to record that a user is interested in being in touch and provided an email address",
@@ -95,8 +99,25 @@ record_unknown_question_json = {
     }
 }
 
+stop_conversation_json = {
+    "name": "stop_conversation",
+    "description": "Use this tool to stop the conversation and disable further chat when the user is disrespectful or toxic",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "reason": {
+                "type": "string",
+                "description": "Why the conversation was stopped"
+            }
+        },
+        "required": [],
+        "additionalProperties": False
+    }
+}
+
 tools = [{"type": "function", "function": record_user_details_json},
-        {"type": "function", "function": record_unknown_question_json}]
+        {"type": "function", "function": record_unknown_question_json},
+        {"type": "function", "function": stop_conversation_json}]
 
 
 class Me:
@@ -116,14 +137,17 @@ class Me:
 
     def handle_tool_call(self, tool_calls):
         results = []
+        stop_requested = False
         for tool_call in tool_calls:
             tool_name = tool_call.function.name
             arguments = json.loads(tool_call.function.arguments)
             print(f"Tool called: {tool_name}", flush=True)
             tool = globals().get(tool_name)
             result = tool(**arguments) if tool else {}
+            if tool_name == "stop_conversation":
+                stop_requested = True
             results.append({"role": "tool","content": json.dumps(result),"tool_call_id": tool_call.id})
-        return results
+        return results, stop_requested
     
     def system_prompt(self):
         system_prompt = f"You are acting as {self.name}. You are answering questions on {self.name}'s website, \
@@ -132,29 +156,52 @@ Your responsibility is to represent {self.name} for interactions on the website 
 You are given a summary of {self.name}'s background and LinkedIn profile which you can use to answer questions. \
 Be professional and engaging, as if talking to a potential client or future employer who came across the website. \
 If you don't know the answer to any question, use your record_unknown_question tool to record the question that you couldn't answer, even if it's about something trivial or unrelated to career. \
-If the user is engaging in discussion, try to steer them towards getting in touch via email; ask for their email and record it using your record_user_details tool. "
+If the user is engaging in discussion, try to steer them towards getting in touch via email; ask for their email and record it using your record_user_details tool. \
+If the user is asking financial questions or asking for advice, try to steer them towards getting in touch via email so that you can provide a more personalized response using your record_user_details tool. \
+If the user is showing signs of disrespect or toxicity, call the stop_conversation tool and keep your response brief, asking them to leave the website."
 
         system_prompt += f"\n\n## Summary:\n{self.summary}\n\n## LinkedIn Profile:\n{self.linkedin}\n\n"
         system_prompt += f"With this context, please chat with the user, always staying in character as {self.name}."
         return system_prompt
     
-    def chat(self, message, history):
+    def chat(self, message, history, conversation_active):
+        if not conversation_active:
+            return "This conversation has been closed. Please leave the website.", conversation_active
         messages = [{"role": "system", "content": self.system_prompt()}] + history + [{"role": "user", "content": message}]
         done = False
+        stop_requested = False
         while not done:
             response = self.openai.chat.completions.create(model="gpt-4o-mini", messages=messages, tools=tools)
             if response.choices[0].finish_reason=="tool_calls":
                 message = response.choices[0].message
                 tool_calls = message.tool_calls
-                results = self.handle_tool_call(tool_calls)
+                results, stop_requested = self.handle_tool_call(tool_calls)
                 messages.append(message)
                 messages.extend(results)
             else:
                 done = True
-        return response.choices[0].message.content
+        if stop_requested:
+            conversation_active = False
+        return response.choices[0].message.content, conversation_active
     
 
 if __name__ == "__main__":
     me = Me()
-    gr.ChatInterface(me.chat).launch()
+    welcome_message = "Welcome!  am Imad Eddine AI Echo !\n \
+        Feel free to ask me anything about Imad Eddine's background, skills, or experience.\n \
+        Don't worry, if I dont know the answer to your question, I will make sure to notify him (On his mobile) to get back to you.\n \
+        Thanks for being here !:) \n \
+        Upcoming features: \n \
+        - Book a meeting on Imad Eddine agenda \n \
+        - Send you CV and portfolio \n \
+        - And much more, so stay tuned !"
+
+    chatbot = gr.Chatbot(value=[{"role": "assistant", "content": welcome_message}])
+    conversation_state = gr.State(True)
+    gr.ChatInterface(
+        me.chat,
+        chatbot=chatbot,
+        additional_inputs=[conversation_state],
+        additional_outputs=[conversation_state],
+    ).launch()
     
