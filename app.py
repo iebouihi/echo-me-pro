@@ -125,7 +125,7 @@ class Me:
     def __init__(self):
         self.openai = OpenAI()
         self.name = "Imad Eddine"
-        self.conversation_active = True
+        self.closed_sessions = set()  # Track closed sessions by session ID
         reader = PdfReader("me/linkedin.pdf")
         self.linkedin = ""
         for page in reader.pages:
@@ -138,6 +138,7 @@ class Me:
 
     def handle_tool_call(self, tool_calls):
         results = []
+        stop_requested = False
         for tool_call in tool_calls:
             tool_name = tool_call.function.name
             arguments = json.loads(tool_call.function.arguments)
@@ -145,9 +146,9 @@ class Me:
             tool = globals().get(tool_name)
             result = tool(**arguments) if tool else {}
             if tool_name == "stop_conversation":
-                self.conversation_active = False
+                stop_requested = True
             results.append({"role": "tool","content": json.dumps(result),"tool_call_id": tool_call.id})
-        return results
+        return results, stop_requested
     
     def system_prompt(self):
         system_prompt = f"You are acting as {self.name}. You are answering questions on {self.name}'s website, \
@@ -156,7 +157,7 @@ Your responsibility is to represent {self.name} for interactions on the website 
 You are given a summary of {self.name}'s background and LinkedIn profile which you can use to answer questions. \
 Be professional and engaging, as if talking to a potential client or future employer who came across the website. \
 If you don't know the answer to any question, use your record_unknown_question tool to record the question that you couldn't answer, even if it's about something trivial or unrelated to career. \
-If the user is engaging in discussion, try to steer them towards getting in touch via email; ask for their email and record it using your record_user_details tool. \
+If the user is engaging in general discussion, technical questions, or trying to engage in interviews, try to steer them towards getting in touch via email; ask for their email and record it using your record_user_details tool. \
 If the user is asking financial questions or asking for advice, try to steer them towards getting in touch via email so that you can provide a more personalized response using your record_user_details tool. \
 If the user is showing signs of disrespect or toxicity, call the stop_conversation tool and keep your response brief, asking them to leave the website."
 
@@ -164,21 +165,26 @@ If the user is showing signs of disrespect or toxicity, call the stop_conversati
         system_prompt += f"With this context, please chat with the user, always staying in character as {self.name}."
         return system_prompt
     
-    def chat(self, message, history):
-        if not self.conversation_active:
+    def chat(self, message, history, request: gr.Request):
+        session_id = request.session_hash
+        logging.info(f"Received message in session {session_id}: {message[:50]}...")    
+        if session_id in self.closed_sessions:
             return "This conversation has been closed. Please leave the website."
         messages = [{"role": "system", "content": self.system_prompt()}] + history + [{"role": "user", "content": message}]
         done = False
+        stop_requested = False
         while not done:
             response = self.openai.chat.completions.create(model="gpt-4o-mini", messages=messages, tools=tools)
             if response.choices[0].finish_reason=="tool_calls":
                 message = response.choices[0].message
                 tool_calls = message.tool_calls
-                results = self.handle_tool_call(tool_calls)
+                results, stop_requested = self.handle_tool_call(tool_calls)
                 messages.append(message)
                 messages.extend(results)
             else:
                 done = True
+        if stop_requested:
+            self.closed_sessions.add(session_id)
         return response.choices[0].message.content
     
 
@@ -193,6 +199,16 @@ if __name__ == "__main__":
         - Send you CV and portfolio \n \
         - And much more, so stay tuned !"
 
-    chatbot = gr.Chatbot(value=[{"role": "assistant", "content": welcome_message}])
-    gr.ChatInterface(me.chat, chatbot=chatbot).launch()
+    with gr.Blocks() as demo:
+        chatbot = gr.Chatbot(value=[{"role": "assistant", "content": welcome_message}])
+        
+        def chat_with_session(message, history, request: gr.Request):
+            return me.chat(message, history, request)
+        
+        gr.ChatInterface(
+            chat_with_session,
+            chatbot=chatbot,
+        )
+    
+    demo.launch()
     
