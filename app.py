@@ -125,6 +125,7 @@ class Me:
     def __init__(self):
         self.openai = OpenAI()
         self.name = "Imad Eddine"
+        self.conversation_active = True
         reader = PdfReader("me/linkedin.pdf")
         self.linkedin = ""
         for page in reader.pages:
@@ -137,7 +138,6 @@ class Me:
 
     def handle_tool_call(self, tool_calls):
         results = []
-        stop_requested = False
         for tool_call in tool_calls:
             tool_name = tool_call.function.name
             arguments = json.loads(tool_call.function.arguments)
@@ -145,9 +145,9 @@ class Me:
             tool = globals().get(tool_name)
             result = tool(**arguments) if tool else {}
             if tool_name == "stop_conversation":
-                stop_requested = True
+                self.conversation_active = False
             results.append({"role": "tool","content": json.dumps(result),"tool_call_id": tool_call.id})
-        return results, stop_requested
+        return results
     
     def system_prompt(self):
         system_prompt = f"You are acting as {self.name}. You are answering questions on {self.name}'s website, \
@@ -164,25 +164,22 @@ If the user is showing signs of disrespect or toxicity, call the stop_conversati
         system_prompt += f"With this context, please chat with the user, always staying in character as {self.name}."
         return system_prompt
     
-    def chat(self, message, history, conversation_active):
-        if not conversation_active:
-            return "This conversation has been closed. Please leave the website.", conversation_active
+    def chat(self, message, history):
+        if not self.conversation_active:
+            return "This conversation has been closed. Please leave the website."
         messages = [{"role": "system", "content": self.system_prompt()}] + history + [{"role": "user", "content": message}]
         done = False
-        stop_requested = False
         while not done:
             response = self.openai.chat.completions.create(model="gpt-4o-mini", messages=messages, tools=tools)
             if response.choices[0].finish_reason=="tool_calls":
                 message = response.choices[0].message
                 tool_calls = message.tool_calls
-                results, stop_requested = self.handle_tool_call(tool_calls)
+                results = self.handle_tool_call(tool_calls)
                 messages.append(message)
                 messages.extend(results)
             else:
                 done = True
-        if stop_requested:
-            conversation_active = False
-        return response.choices[0].message.content, conversation_active
+        return response.choices[0].message.content
     
 
 if __name__ == "__main__":
@@ -197,11 +194,5 @@ if __name__ == "__main__":
         - And much more, so stay tuned !"
 
     chatbot = gr.Chatbot(value=[{"role": "assistant", "content": welcome_message}])
-    conversation_state = gr.State(True)
-    gr.ChatInterface(
-        me.chat,
-        chatbot=chatbot,
-        additional_inputs=[conversation_state],
-        additional_outputs=[conversation_state],
-    ).launch()
+    gr.ChatInterface(me.chat, chatbot=chatbot).launch()
     
