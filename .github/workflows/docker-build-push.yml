@@ -2,20 +2,20 @@ name: Build and Push Docker Image to Docker Hub
 
 # Trigger configuration
 on:
-  # Trigger on PRs targeting main/master with /releases/ changes
+  # Trigger on pull requests from release branches (release/*, releases/*)
   pull_request:
     branches:
       - main
       - master
-    paths:
-      - 'releases/**'
-      - 'Dockerfile'
-      - 'pyproject.toml'
-      - 'requirements.txt'
-      - '.github/workflows/docker-build-push.yml'
-
-  # Manual trigger for testing
+  # Trigger on manual dispatch for testing
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version for manual trigger (optional, e.g., 1.0.0)'
+        required: false
+        type: string
+
+
 
 env:
   REGISTRY: docker.io
@@ -37,31 +37,44 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Extract version from releases/ directory structure
-      - name: Extract release version from directory path
+      # Extract version from branch name or manual input
+      - name: Extract release version from branch name
         id: extract
         run: |
-          # Find release version from releases/{version} pattern
-          RELEASE_VERSION=$(find releases -maxdepth 1 -type d -name '*' | grep -oP '(?<=releases/)[^/]+' | head -1)
-          
-          if [ -z "$RELEASE_VERSION" ]; then
-            echo "ERROR: No releases/{version} directory found"
-            exit 1
+          # Get version from manual input (workflow_dispatch) or extract from branch name
+          if [ -n "${{ github.event.inputs.release_version }}" ]; then
+            # Manual trigger with explicit version
+            RELEASE_VERSION="${{ github.event.inputs.release_version }}"
+            echo "✅ Using manual input version: $RELEASE_VERSION"
+          else
+            # Extract from branch name (release/1.0.0 or releases/1.0.0)
+            BRANCH_NAME="${{ github.head_ref }}"
+            echo "📦 Checking branch name: $BRANCH_NAME"
+            
+            # Extract version from release/version or releases/version pattern
+            RELEASE_VERSION=$(echo "$BRANCH_NAME" | grep -oP 'release/?s?/\K[^/]+$' || echo "")
+            
+            if [ -z "$RELEASE_VERSION" ]; then
+              echo "❌ ERROR: Branch must follow pattern: release/X.Y.Z or releases/X.Y.Z"
+              echo "Example: release/1.0.0 or releases/1.2.3"
+              exit 1
+            fi
+            echo "✅ Extracted from branch: $RELEASE_VERSION"
           fi
           
-          # Validate semantic versioning (v1.0.0 or 1.0.0)
-          if ! [[ "$RELEASE_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "ERROR: Invalid version format: $RELEASE_VERSION"
-            echo "Expected format: v1.0.0 or 1.0.0"
+          # Validate semantic versioning (v1.0.0, 1.0.0, or 1.0.0-beta)
+          if ! [[ "$RELEASE_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+            echo "❌ ERROR: Invalid version format: '$RELEASE_VERSION'"
+            echo "Expected format: 1.0.0, v1.0.0, or 1.0.0-beta"
             exit 1
           fi
           
           # Normalize version (remove 'v' prefix if present)
           NORMALIZED_VERSION=${RELEASE_VERSION#v}
           
+          echo "✅ Release version: $NORMALIZED_VERSION"
           echo "version=$NORMALIZED_VERSION" >> $GITHUB_OUTPUT
           echo "tag=iebouihi/echo-me-pro:$NORMALIZED_VERSION" >> $GITHUB_OUTPUT
-          echo "Released version: $NORMALIZED_VERSION"
 
   # Job 2: Build Docker image and run security scans
   build-and-scan:
