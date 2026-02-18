@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: echo-me-ai-config
+  namespace: echo-me-ai
+data:
+  SENDER_EMAIL: "imad.bouihi@gmail.com"
+  SENDER_NAME: "Echo Me AI behalf Imad Eddine"

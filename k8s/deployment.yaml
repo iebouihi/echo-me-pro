@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-me-ai
+  namespace: echo-me-ai
+  labels:
+    app: echo-me-ai
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: echo-me-ai
+  template:
+    metadata:
+      labels:
+        app: echo-me-ai
+    spec:
+      containers:
+      - name: echo-me-ai
+        image: iebouihi/echo-me-pro:1.0.0
+        ports:
+        - containerPort: 7860
+        envFrom:
+          - secretRef:
+              name: echo-me-ai-secrets
+          - configMapRef:
+              name: echo-me-ai-config
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 60
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"

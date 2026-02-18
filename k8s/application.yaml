@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-me-pro
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-me-pro 
+  template:
+    metadata:
+      labels:
+        app: echo-me-pro
+    spec:
+      containers:
+      - name: echo-me-pro
+        image: iebouihi/echo-me-pro:latest
+        ports:
+        - containerPort: 7860
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 7860
+          initialDelaySeconds: 60
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
