@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: echo-me-ai
-        image: iebouihi/echo-me-pro:1.0.3
+        image: iebouihi/echo-me-pro:1.1.0
         ports:
         - containerPort: 7860
         envFrom:
