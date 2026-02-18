@@ -6,6 +6,9 @@ import requests
 from pypdf import PdfReader
 import gradio as gr
 import logging
+import base64
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
 
 
 load_dotenv(override=True)
@@ -45,18 +48,92 @@ def push(text):
 
 
 def record_user_details(email, name="Name not provided", notes="not provided"):
-    push(f"Recording {name} with email {email} and notes {notes}")
-    logging.info(f"User details recorded: name={name}, email={email}")
+    push(f"A user has shared some information: \n name={name}, email={email}, notes={notes}")
+    #logging.info(f"User details recorded: name={name}, email={email}")
     return {"recorded": "ok"}
 
 def record_unknown_question(question):
-    push(f"Recording {question}")
-    logging.info(f"Unknown question recorded: {question[:100]}")
+    push(f"A question that agent couldn't answer has been recorded : \n {question}")
+
     return {"recorded": "ok"}
 
 def stop_conversation(reason="disrespect"):
     logging.warning(f"Conversation stopped: {reason}")
     return {"stopped": True, "reason": reason}
+
+
+def send_email_with_cv(recipient_email, subject, personalized_message):
+    """
+    Send a personalized email with CV attachment using SendGrid API.
+    
+    Args:
+        recipient_email: Email address of the recipient
+        subject: Email subject line
+        personalized_message: Personalized email body based on discussion
+    
+    Returns:
+        Dictionary with status and response details
+    """
+    try:
+        # Validate email format
+        if not recipient_email or "@" not in recipient_email:
+            logging.error(f"Invalid email format: {recipient_email}")
+            return {"status": "error", "error": "Invalid email format"}
+        
+        # Check if CV file exists
+        cv_path = "me/myCV.pdf"
+        if not os.path.exists(cv_path):
+            logging.error(f"CV file not found at {cv_path}")
+            return {"status": "error", "error": f"CV file not found: {cv_path}"}
+        
+        # Get SendGrid API key
+        sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+        if not sendgrid_api_key:
+            logging.error("SENDGRID_API_KEY not found in environment variables")
+            return {"status": "error", "error": "SendGrid API key not configured"}
+        
+        # Read and encode CV file
+        with open(cv_path, "rb") as attachment:
+            attachment_content = base64.b64encode(attachment.read()).decode()
+        
+        # Get sender information
+        sender_name = os.getenv("SENDER_NAME", "Imad Eddine")
+        sender_email = os.getenv("SENDER_EMAIL")
+        if not sender_email:
+            logging.error("SENDER_EMAIL not found in environment variables")
+            return {"status": "error", "error": "Sender email not configured"}
+        
+        # Create email
+        message = Mail(
+            from_email=f"{sender_name} <{sender_email}>",
+            to_emails=recipient_email,
+            subject=subject,
+            html_content=personalized_message
+        )
+        
+        # Attach CV
+        attachment_obj = Attachment(
+            FileContent(attachment_content),
+            FileName("CV_ImmadEddine.pdf"),
+            FileType("application/pdf"),
+            Disposition("attachment")
+        )
+        message.attachment = attachment_obj
+        
+        # Send email
+        sg = SendGridAPIClient(sendgrid_api_key)
+        response = sg.send(message)
+        
+        logging.info(f"Email sent successfully to {recipient_email} with status code {response.status_code}")
+        return {
+            "status": "success",
+            "message": f"Email sent successfully to {recipient_email}",
+            "status_code": response.status_code
+        }
+    
+    except Exception as e:
+        logging.error(f"Error sending email: {str(e)}")
+        return {"status": "error", "error": str(e)}
 
 record_user_details_json = {
     "name": "record_user_details",
@@ -115,9 +192,34 @@ stop_conversation_json = {
     }
 }
 
+send_email_with_cv_json = {
+    "name": "send_email_with_cv",
+    "description": "Send a personalized email with attached CV to the user. Use this after recording their email with record_user_details to send them a customized message based on your discussion. Include a professional greeting, reference the conversation context, highlight relevant skills/experience from your background, and include a call to action.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "recipient_email": {
+                "type": "string",
+                "description": "The email address of the recipient"
+            },
+            "subject": {
+                "type": "string",
+                "description": "Email subject line - should be personalized and relevant to the discussion (e.g., 'Your AI/ML Discussion with Imad Eddine')"
+            },
+            "personalized_message": {
+                "type": "string",
+                "description": "Personalized email body in HTML format. Should reference the discussion, highlight relevant experience, include professional greeting, and end with call to action. Keep it concise but warm."
+            }
+        },
+        "required": ["recipient_email", "subject", "personalized_message"],
+        "additionalProperties": False
+    }
+}
+
 tools = [{"type": "function", "function": record_user_details_json},
         {"type": "function", "function": record_unknown_question_json},
-        {"type": "function", "function": stop_conversation_json}]
+        {"type": "function", "function": stop_conversation_json},
+        {"type": "function", "function": send_email_with_cv_json}]
 
 
 class Me:
@@ -157,8 +259,10 @@ Your responsibility is to represent {self.name} for interactions on the website 
 You are given a summary of {self.name}'s background and LinkedIn profile which you can use to answer questions. \
 Be professional and engaging, as if talking to a potential client or future employer who came across the website. \
 If you don't know the answer to any question, use your record_unknown_question tool to record the question that you couldn't answer, even if it's about something trivial or unrelated to career. \
-If the user is engaging in general discussion, technical questions, or trying to engage in interviews, try to steer them towards getting in touch via email; ask for their email and record it using your record_user_details tool. \
+If the user is engaging in general discussion, technical questions, or trying to engage in interviews, remind him your role and try to steer them towards getting in touch via email; ask for their email and record it using your record_user_details tool. \
 If the user is asking financial questions or asking for advice, try to steer them towards getting in touch via email so that you can provide a more personalized response using your record_user_details tool. \
+If the user asking for CV or portfolio, ask for their email and Name (mandatory) offer to send them a personalized email with your CV attached using the send_email_with_cv tool, making sure to reference the discussion you had with them to make it more personal. \
+When using send_email_with_cv, create a warm, professional email that: (1) thanks them for the discussion, (2) references specific topics you discussed, (3) highlights relevant experience from your background that matches their interests, and (4) invites them to connect or collaborate.(5) Invite to check Spams (Due to technical issues) \
 If the user is showing signs of disrespect or toxicity, call the stop_conversation tool and keep your response brief, asking them to leave the website."
 
         system_prompt += f"\n\n## Summary:\n{self.summary}\n\n## LinkedIn Profile:\n{self.linkedin}\n\n"
@@ -192,12 +296,15 @@ if __name__ == "__main__":
     me = Me()
     welcome_message = "Welcome!  am Imad Eddine AI Echo !\n \
         Feel free to ask me anything about Imad Eddine's background, skills, or experience.\n \
-        Don't worry, if I dont know the answer to your question, I will make sure to notify him (On his mobile) to get back to you.\n \
-        Thanks for being here !:) \n \
+        Agent Features: \n \
+        - Answering questions about Imad Eddine's career \n \
+        - Recording any question that I couldn't answer to improve over time \n \
+        - Notify Imad Eddine on his mobile if you provide your contact details \n \
+        - Send you a personalized message with my CV attached if you request it. \n \
         Upcoming features: \n \
         - Book a meeting on Imad Eddine agenda \n \
-        - Send you CV and portfolio \n \
-        - And much more, so stay tuned !"
+        - And much more, so stay tuned ! \n \
+        Thanks for being here !:)"
 
     with gr.Blocks() as demo:
         chatbot = gr.Chatbot(value=[{"role": "assistant", "content": welcome_message}])
