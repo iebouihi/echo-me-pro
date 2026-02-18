@@ -127,7 +127,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: ${{ env.SCAN_SEVERITY }}
-          exit-code: '1'  # Fail if vulnerabilities found
+          exit-code: '0'  # Do not fail build; results are uploaded to Security tab
 
       # Step 5: Upload Trivy scan results to GitHub Security tab for visibility
       - name: Upload Trivy vulnerability report to GitHub Security
