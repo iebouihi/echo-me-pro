@@ -21,34 +21,25 @@ Add the following secrets to your GitHub repository:
 3. Set token name: `github-action-echo-me-pro`
 4. Copy the token and add it to GitHub Secrets as `DOCKERHUB_TOKEN`
 
-### 3. Directory Structure
-Ensure your repository has releases organized like:
-```
-releases/
-├── 1.0.0/
-│   └── (release notes or artifacts)
-├── 1.1.0/
-│   └── (release notes or artifacts)
-└── 1.2.0/
-    └── (release notes or artifacts)
-```
+### 3. Branch Naming Convention
+Create release branches using the following pattern:
+- `release/1.0.0` - Standard release (preferred)
+- `releases/1.2.3` - Alternative naming
+- `release/1.0.0-beta` - Pre-release versions supported
 
-The workflow extracts the version from the directory name (e.g., `1.2.0`).
+The workflow extracts the version from the branch name automatically.
 
 ## Workflow Triggers
 
 ### Automatic Trigger
 The workflow runs automatically when:
-- A PR is merged to `main` or `master`
-- **AND** one of these files changes:
-  - `releases/**` (new release directory)
-  - `Dockerfile`
-  - `pyproject.toml`
-  - `requirements.txt`
-  - `.github/workflows/docker-build-push.yml`
+- A **pull request** is created from a release branch to `main` or `master`
+- Release branch must match: `release/X.Y.Z` or `releases/X.Y.Z`
 
 ### Manual Trigger
-You can manually trigger the workflow from the Actions tab for testing.
+You can manually trigger the workflow from the Actions tab with optional explicit version:
+- Go to **Actions** → **Build and Push Docker Image to Docker Hub** → **Run workflow**
+- Optionally provide a version in the format `1.0.0` or `1.0.0-beta`
 
 ## Workflow Jobs
 
@@ -56,13 +47,14 @@ You can manually trigger the workflow from the Actions tab for testing.
 **Purpose**: Extract and validate the release version from the `releases/{version}` directory
 
 **Steps**:
-1. Checkout code with full history
-2. Find version from `releases/` directory structure
-3. Validate semantic versioning format (`v1.0.0` or `1.0.0`)
-4. Output normalized version for downstream jobs
+1. Checkout code with full historybranch name or manual input
 
-**Output**:
-- `release-version`: The extracted version (e.g., `1.2.0`)
+**Steps**:
+1. Checkout code with full history
+2. Extract version from branch name (e.g., `release/1.0.0` → `1.0.0`)
+3. Or use manual input from `workflow_dispatch` if provided
+4. Validate semantic versioning format (`v1.0.0`, `1.0.0`, or `1.0.0-beta`)
+5 `release-version`: The extracted version (e.g., `1.2.0`)
 - `image-tag`: Full image tag (e.g., `iebouihi/echo-me-pro:1.2.0`)
 
 ---
@@ -197,49 +189,68 @@ You can manually trigger the workflow from the Actions tab for testing.
 | **Cosign signing fails** | Check GitHub OIDC trust configuration |
 
 ## Example Usage
-
-### 1. Create a Release
+Option 1: Create Release via Pull Request (Recommended)
 ```bash
-# Create releases directory
-mkdir -p releases/1.2.0
+# Create release branch from main/master
+git checkout -b release/1.2.0
 
-# Add release notes
-echo "Release 1.2.0 changelog" > releases/1.2.0/RELEASE_NOTES.md
+# Make any release-specific changes (optional)
+# e.g., update version numbers, changelog, etc.
+git commit -m "Release 1.2.0" || true
 
-# Commit and push
-git add releases/1.2.0/
-git commit -m "chore: prepare release 1.2.0"
-git push origin main
+# Push branch
+git push origin release/1.2.0
+
+# Create Pull Request on GitHub
+# GitHub Actions workflow will:
+# 1. Automatically trigger on PR creation
+# 2. Build and scan image
+# 3. Push to Docker Hub as iebouihi/echo-me-pro:1.2.0
+
+# Merge PR to main when ready
 ```
 
-### 2. Create Pull Request (if not directly pushing)
-If using PR workflow:
+### Option 2: Manual Trigger via GitHub Actions
+```bash
+# No branch needed - use GitHub Actions UI:
+```
+1. Go to **Actions** tab
+2. Select **Build and Push Docker Image to Docker Hub**
+3. Click **Run workflow**
+4. Enter version: `1.2.0` (optional)
+5. Click **Run workflow**
+
+### Option 3: Command Line Push (Advanced)
 ```bash
 # Create release branch
 git checkout -b release/1.2.0
 
-# Make changes
-mkdir -p releases/1.2.0
-
-# Commit and push
-git commit -m "Release 1.2.0"
+# Push and create PR
 git push origin release/1.2.0
 
-# Create PR on GitHub
-# Merge PR to main
+# Create PR using GitHub CLI
+gh pr create --base main --head release/1.2.0 --title "Release 1.2.0"
+
+# Monitor workflow
+gh run list --workflow=docker-build-push.yml
 ```
 
-### 3. Monitor Workflow
+### Monitor Workflow
 - Go to GitHub **Actions** tab
+- Select **Build and Push Docker Image to Docker Hub** workflow
 - Watch workflow execution in real-time
-- Check security scan results
+- Check security scan results in **Security** tab
 
-### 4. Pull & Run Image
+### Pull & Run Pushed Image
 ```bash
 # Pull the pushed image
 docker pull iebouihi/echo-me-pro:1.2.0
 
 # Run the container
+docker run -p 7860:7860 iebouihi/echo-me-pro:1.2.0
+
+# Verify it's running
+curl http://localhost:786
 docker run -p 7860:7860 iebouihi/echo-me-pro:1.2.0
 ```
 
