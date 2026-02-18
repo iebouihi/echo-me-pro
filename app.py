@@ -294,7 +294,7 @@ If the user is showing signs of disrespect or toxicity, call the stop_conversati
 
 if __name__ == "__main__":
     me = Me()
-    welcome_message = "Welcome!  am Imad Eddine AI Echo !\n \
+    welcome_message = "Welcome :) I'm Imad Eddine AI Echo !\n \
         Feel free to ask me anything about Imad Eddine's background, skills, or experience.\n \
         Agent Features: \n \
         - Answering questions about Imad Eddine's career \n \
