@@ -23,19 +23,24 @@ Add the following secrets to your GitHub repository:
 
 ### 3. Branch Naming Convention
 Create release branches using the following pattern:
-- `release/1.0.0` - Standard release (preferred)
+- `release/1.4` - Short version (auto-normalized to 1.4.0)
+- `release/1.4.0` - Full semantic version
 - `releases/1.2.3` - Alternative naming
 - `release/1.0.0-beta` - Pre-release versions supported
 
-The workflow extracts the version from the branch name automatically.
+The workflow extracts the version from the branch name automatically and normalizes it to semantic versioning (X.Y.Z format).
 
 ## Workflow Triggers
 
 ### Automatic Trigger
 The workflow runs automatically when:
 - A **pull request** is created from a release branch to `main` or `master`
-- Release branch must match: `release/X.Y.Z` or `releases/X.Y.Z`
-
+- Release branch must match: `release/X.Y`, `release/X.Y.Z`, or `releases/X.Y.Z`
+- Examples that work:
+  - `release/1.4` → normalized to `1.4.0`
+  - `release/1.4.0` → stays as `1.4.0`
+  - `release/1.4.0-beta` → stays as `1.4.0-beta`
+: `1.4`, `1.4.0`, or `1.4.0-beta` - all formats accepted
 ### Manual Trigger
 You can manually trigger the workflow from the Actions tab with optional explicit version:
 - Go to **Actions** → **Build and Push Docker Image to Docker Hub** → **Run workflow**

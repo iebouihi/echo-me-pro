@@ -3,11 +3,6 @@
 .env.local
 .env.*.local
 
-# Personal Data - DO NOT COMMIT
-me/
-me/summary.txt
-me/linkedin.pdf
-
 # Python
 __pycache__/
 *.py[cod]
