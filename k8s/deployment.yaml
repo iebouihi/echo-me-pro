@@ -15,6 +15,7 @@ spec:
       labels:
         app: echo-me-ai
     spec:
+      serviceAccountName: echo-me-ai-sa
       containers:
       - name: echo-me-ai
         image: iebouihi/echo-me-pro:1.1.1
