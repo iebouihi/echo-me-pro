@@ -296,7 +296,7 @@ if __name__ == "__main__":
     me = Me()
     welcome_message = "Welcome :) I'm Imad Eddine AI Echo !\n \
         Feel free to ask me anything about Imad Eddine's background, skills, or experience.\n \
-        Agent Features: \n \
+        Agent Features (V1.1.1): \n \
         - Answering questions about Imad Eddine's career \n \
         - Recording any question that I couldn't answer to improve over time \n \
         - Notify Imad Eddine on his mobile if you provide your contact details \n \
