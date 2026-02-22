@@ -8,10 +8,10 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: ask.imadlabs.co.site
+    - host: demos.imadlabs.co.site
       http:
         paths:
-          - path: /
+          - path: /ask
             pathType: Prefix
             backend:
               service:
