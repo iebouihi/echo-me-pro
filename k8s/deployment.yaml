@@ -18,7 +18,7 @@ spec:
       serviceAccountName: echo-me-ai-sa
       containers:
       - name: echo-me-ai
-        image: iebouihi/echo-me-pro:1.1.5
+        image: iebouihi/echo-me-pro:1.1.6
         ports:
         - containerPort: 7860
         envFrom:
