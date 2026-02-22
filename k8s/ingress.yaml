@@ -5,8 +5,13 @@ metadata:
   namespace: echo-me-ai
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - demos.imadlabs.co.site
+      secretName: demos-imadlabs-tls
   rules:
     - host: demos.imadlabs.co.site
       http:
