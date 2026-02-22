@@ -5,16 +5,14 @@ metadata:
   namespace: echo-me-ai
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "20m"
-    nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   ingressClassName: nginx
   rules:
     - host: demos.imadlabs.co.site
       http:
         paths:
-          - path: /ask(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /ask
+            pathType: Prefix
             backend:
               service:
                 name: echo-me-ai-service

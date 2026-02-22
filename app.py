@@ -317,5 +317,5 @@ if __name__ == "__main__":
             chatbot=chatbot,
         )
     
-    demo.launch()
+    demo.launch(root_path="/ask")
     
