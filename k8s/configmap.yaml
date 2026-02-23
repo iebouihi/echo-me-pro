@@ -4,5 +4,5 @@ metadata:
   name: echo-me-ai-config
   namespace: echo-me-ai
 data:
-  SENDER_EMAIL: "contact@imadlabs.co.site"
+  SENDER_EMAIL: "imad.bouihi@gmail.com"
   SENDER_NAME: "Imad Eddine BOUIHI AI Echo"
